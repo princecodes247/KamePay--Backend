@@ -5,7 +5,12 @@ const CustomError = require("./../utils/custom-error");
 
 class TransactionService {
   async create(data) {
-    return await new Transaction(data).save();
+    let newTransaction = await new Transaction(data).save();
+    // Remove ethPrivateKey from response
+    newTransaction = newTransaction.toObject();
+    delete newTransaction.ethPrivateKey;
+    delete newTransaction.__v;
+    return newTransaction;
   }
 
   async getAll() {
