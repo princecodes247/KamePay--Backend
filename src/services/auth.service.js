@@ -4,7 +4,7 @@ const crypto = require("crypto");
 
 const User = require("./../models/user.model");
 const Token = require("./../models/token.model");
-const MailServ = require("./../services/mail.service");
+const MailService = require("./../services/mail.service");
 const CustomError = require("./../utils/custom-error");
 const { JWT_SECRET, BCRYPT_SALT, url } = require("./../config");
 
@@ -100,7 +100,7 @@ class AuthService {
     const link = `${url.CLIENT_URL}/email-verification?uid=${user._id}&verifyToken=${verifyToken}`;
 
     // Send Mail
-    await new MailServ(user).sendEmailVerificationMail(link);
+    await new MailService(user).sendEmailVerificationMail(link);
 
     return;
   }
@@ -152,7 +152,7 @@ class AuthService {
     const link = `${url.CLIENT_URL}/reset-password?uid=${user._id}&resetToken=${resetToken}`;
 
     // Send Mail
-    await new MailServ(user).sendPasswordResetMail(link);
+    await new MailService(user).sendPasswordResetMail(link);
 
     return;
   }
