@@ -65,6 +65,10 @@ export default ({ app }) => {
     if (err.name === 'UnauthorizedError') {
       return res.status(err.status).json({ message: err.message }).end();
     }
+    if (err.code === 11000) {
+      const message = Object.keys(err.keyValue).map(key => `${key}: ${err.keyValue[key]} already exists`);
+      return res.status(400).json({ message }).end();
+    }
     return next(err);
   });
 
