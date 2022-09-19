@@ -1,38 +1,79 @@
-# backend
+# Isabi API🛡️
 
-This project was generated with [BàngáJS](https://bangajs.netlify.app/) v1.1.0.  
+## Development
 
-## Installation
+We would use `node` version `14.9.0`
 
-1. Install dependencies - `npm install`
+The first time, you will need to run
 
-2. Create a new file `.env` if it doesn't exist and copy the contents of `env.dev` into it to be able to run your server on production environment. 
+```
+npm install
+```
 
-3. Then you need to provide values for the configuration env files at the `src/config/env directory`.
+Then just start the server with
 
+```
+npm run start
+```
 
-## Running the server locally
+It uses nodemon for livereloading :peace-fingers:
 
-1. Start up the server - Run `npm start` | `npm run dev`
+# API Validation
 
-2. Server should be running on http://localhost:2020/ by default
+By using [celebrate](https://github.com/arb/celebrate), the req.body schema becomes cleary defined at route level, so even frontend devs can read what an API endpoint expects without needing to write documentation that can get outdated quickly.
 
-## Code scaffolding
+```js
+route.post(
+  '/signup',
+  celebrate({
+    body: Joi.object({
+      name: Joi.string().required(),
+      email: Joi.string().required(),
+      password: Joi.string().required(),
+    }),
+  }),
+  controller.signup
+);
+```
 
-Run `banga generate <type> <name>` to generate a new file types. Visit [here](https://bangajs.netlify.app/#banga-generate) for more info.
+**Example error**
 
-## Routes
+```json
+{
+  "errors": {
+    "message": "child \"email\" fails because [\"email\" is required]"
+  }
+}
+```
 
-| Routes                                                           | Description                              | Auth roles                            |
-| -----------------------------------------------------------------|----------------------------------------- | ------------------------------------- |
-| [POST] &nbsp; /api/auth/sign-up                                  | Create a new account                     | none                                     
-| [POST] &nbsp; /api/auth/sign-in                                  | User sign in                             | none                                      
-| [POST] &nbsp; /api/auth/request-email-verification               | Resend verfication email                 | none                                     
-| [POST] &nbsp; /api/auth/verify-email                             | Email verification                       | none                                     
-| [POST] &nbsp; /api/auth/request-password-reset                   | Sends a request password email           | none                                      
-| [POST] &nbsp; /api/auth/reset-password                           | Reset password form handler              | none                                      
-| [POST] &nbsp; /api/users                                         | Create a user                            | User                                  
-| [GET] &nbsp; /api/users                                          | Get all users                            | Admin                                 
-| [GET] &nbsp; /api/users/:userId                                  | Get a user                               | User                                  
-| [UPDATE] &nbsp; /api/users/::userId                              | Update a user                            | User                                  
-| [DELETE] &nbsp; /api/users/:userId                               | Delete a user                            | Admin                                 
+[Read more about celebrate here](https://github.com/arb/celebrate) and [the Joi validation API](https://github.com/hapijs/joi/blob/v15.0.1/API.md)
+
+# Setup
+
+- [ ] Error Handling
+- [ ] Change Authentication to HTTP-only cookies
+- [ ] Unit tests examples
+- [x] Setup Events
+- [x] Basic Service setup
+- [x] Basic Controller setup
+- [x] CRUD service class to extend with Pagination functionality
+- [ ] Decide route name convention
+- [ ] Create models array
+- [ ] Rewrite Subscribers
+- [ ] Add agenda dashboard
+- [ ] Continuous integration with CircleCI 😍
+- [ ] Deploys script and docs for Heroku, Render
+- [ ] Integration test with newman 😉
+
+# Roadmap
+
+- [ ] Setup
+- [ ] Create user services and accompanying tests
+- [ ] Create game service
+- [x]
+
+## API Documentation
+
+Postman would be used for the API Documentation. I'll search for an integration and implement it
+
+'no-underscore-dangle': ['error', { allow: ['_place'] }],s

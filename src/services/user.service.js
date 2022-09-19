@@ -1,41 +1,16 @@
-const User = require("./../models/user.model");
-const CustomError = require("./../utils/custom-error");
-class UserService {
-  async create(data) {
-    return await new User(data).save();
+import { Container } from 'typedi';
+import CRUD from './factories/crud.factory';
+
+export default class UserService extends CRUD {
+  constructor() {
+    super();
+    this.model = Container.get('user.model');
+    // this.eventDispatcher = new EventDispatcher();
   }
 
-  async getAll() {
-    return await User.find({}, { password: 0, __v: 0 });
-  }
-
-  async getOne(userId) {
-    const user = await User.findOne(
-      { _id: userId },
-      { password: 0, __v: 0 }
-    );
-    if (!user) throw new CustomError("User does not exist");
-
-    return user
-  }
-
-  async update(userId, data) {
-    const user = await User.findByIdAndUpdate(
-      { _id: userId },
-      { $set: data },
-      { new: true }
-    );
-
-    if (!user) throw new CustomError("User dosen't exist", 404);
-
-    return user;
-  }
-
-  async delete(userId) {
-    const user = await User.findOne({ _id: userId });
-    user.remove()
-    return user
+  async test() {
+    const eventDispatcher = Container.get('eventDispatcher');
+    eventDispatcher.dispatch('users');
+    return 'test';
   }
 }
-
-module.exports = new UserService();

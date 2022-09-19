@@ -1,57 +1,38 @@
-const nodemailer = require("nodemailer");
-const CustomError = require("./../utils/custom-error");
-const { mailer, APP_NAME } = require("./../config");
+// @Service()s
+export default class MailService {
+  // @Inject('emailClient') private emailClient,
+  // @Inject('emailDomain') private emailDomain,
 
-class MailService {
-  constructor(user) {
-    this.user = user;
+  async SendWelcomeEmail(email) {
+    /**
+     * @TODO Call Mailchimp/Sendgrid or whatever
+     */
+    // Added example for sending mail from mailgun
+    const data = {
+      from: 'Excited User <me@samples.mailgun.org>',
+      to: [email],
+      subject: 'Hello',
+      text: 'Testing some Mailgun awesomness!',
+    };
+    try {
+      this.emailClient.messages.create(this.emailDomain, data);
+      return { delivered: 1, status: 'ok' };
+    } catch (e) {
+      return { delivered: 0, status: 'error' };
+    }
   }
 
-  async send(subject, content, recipient, from) {
-    from = from || `${APP_NAME} <no-reply${mailer.DOMAIN}>`
-    content = content || " "
-
-    if (!recipient || recipient.length < 1) throw new CustomError("Recipient is required");
-    if (!subject) throw new CustomError("Subject is required");
-
-    // Define nodemailer transporter
-    const transporter = nodemailer.createTransport({
-      host: mailer.HOST,
-      port: mailer.PORT,
-      secure: mailer.SECURE,
-      auth: {
-        user: mailer.USER,
-        pass: mailer.PASSWORD
-      }
-    });
-
-    const result = await transporter.sendMail({
-      from,
-      to: Array.isArray(recipient) ? recipient.join() : recipient,
-      subject,
-      text: content
-    });
-
-    if (!result) throw new CustomError("Unable to send mail")
-
-    return result
-  }
-
-  async sendEmailVerificationMail(link) {
-    const subject = "Email Verification";
-    const content = `Hey ${this.user.name}, Please click on the link to verify your email ${link}`
-    const recipient = this.user.email
-
-    return await this.send(subject, content, recipient)
-  }
-
-  async sendPasswordResetMail(link) {
-    const subject = "Reset password";
-    const content = `Hey ${this.user.name}, Please click on the link to reset your password ${link}`
-    const recipient = this.user.email
-
-    return await this.send(subject, content, recipient)
+  StartEmailSequence(sequence, user) {
+    if (!user.email) {
+      throw new Error('No email provided');
+    }
+    // @TODO Add example of an email sequence implementation
+    // Something like
+    // 1 - Send first email of the sequence
+    // 2 - Save thconstructor() {}e step of the sequence in database
+    // 3 - Schedule job for second email in 1-3 days or whatever
+    // Every sequence can have its own behavior so maybe
+    // the pattern Chain of Responsibility can help here.
+    return { delivered: 1, status: 'ok' };
   }
 }
-
-module.exports = MailService

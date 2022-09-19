@@ -1,186 +1,139 @@
-const JWT = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
-const crypto = require("crypto");
+import { Container } from 'typedi';
+import jwt from 'jsonwebtoken';
+// import MailerService from './mail.service';
+import bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
+// import { EventDispatcher, EventDispatcherInterface } from '#src/decorators/eventDispatcher';
+// import events from '#src/subscribers/events';
+import config from '../config';
 
-const User = require("./../models/user.model");
-const Token = require("./../models/token.model");
-const MailService = require("./../services/mail.service");
-const CustomError = require("./../utils/custom-error");
-const { JWT_SECRET, BCRYPT_SALT, url } = require("./../config");
-
-class AuthService {
-  // User sign up
-  async signup(data) {
-    let user = await User.findOne({ email: data.email });
-    if (user) throw new CustomError("Email already exists");
-
-    user = new User(data);
-    const token = JWT.sign({ id: user._id, role: user.role }, JWT_SECRET);
-    await user.save();
-
-    // Request email verification
-    // await this.RequestEmailVerification(user.email)
-
-    return (data = {
-      uid: user._id,
-      email: user.email,
-      role: user.role,
-      verified: user.isVerified,
-      ethAddress: user.ethAddress,
-      token: token,
-    });
+// @Service()
+export default class AuthService {
+  constructor() {
+    this.userModel = Container.get('user.model');
+    this.logger = Container.get('logger');
+    this.mailer = Container.get('mail.service');
   }
 
-  // User sign in
-  async signin(data) {
-    if (!data.email) throw new CustomError("Email is required");
-    if (!data.password) throw new CustomError("Password is required");
+  async signUp(userInputDTO) {
+    try {
+      const salt = randomBytes(32);
+      const saltRounds = 10;
+      this.logger.silly('Hashing password');
+      const hashedPassword = await bcrypt.hash(userInputDTO.password, saltRounds);
 
-    // Check if user exist
-    const user = await User.findOne({ email: data.email });
-    if (!user) throw new CustomError("Incorrect email or password");
+      this.logger.silly('Creating user db record');
+      const userRecord = await this.userModel.create({
+        ...userInputDTO,
+        salt: salt.toString('hex'),
+        password: hashedPassword,
+      });
+      this.logger.silly('Generating JWT');
+      const token = this.generateToken(userRecord);
 
-    //Check if user password is correct
-    const isCorrect = await bcrypt.compare(data.password, user.password);
-    if (!isCorrect) throw new CustomError("Incorrect email or password");
+      if (!userRecord) {
+        throw new Error('User cannot be created');
+      }
+      this.logger.silly('Sending welcome email');
+      const emails = await this.mailer.SendWelcomeEmail(userRecord);
+      this.logger.silly(emails);
+      const eventDispatcher = Container.get('eventDispatcher');
+      eventDispatcher.dispatch('events.user.signUp', { user: userRecord });
 
-    const token = await JWT.sign(
-      { id: user._id, role: user.role },
-      JWT_SECRET,
-      { expiresIn: 60 * 60 }
+      /**
+       * @TODO This is not the best way to deal with this
+       * There should exist a 'Mapper' layer
+       * that transforms data from layer to layer
+       * but that's too over-engineering for now
+       */
+      const user = userRecord.toObject();
+      Reflect.deleteProperty(user, 'password');
+      Reflect.deleteProperty(user, 'salt');
+      return { user, token };
+    } catch (e) {
+      this.logger.error(e);
+      throw e;
+    }
+  }
+
+  async signIn(email, password) {
+    const userRecord = await this.userModel.findOne({ email });
+    if (!userRecord) {
+      throw new Error('User not registered');
+    }
+    /**
+     * We use verify from bcrypt to prevent 'timing based' attacks
+     */
+    this.logger.silly('Checking password');
+    const validPassword = await bcrypt.compare(password, userRecord.password);
+    if (validPassword) {
+      this.logger.silly('Password is valid!');
+      this.logger.silly('Generating JWT Tokens');
+      const tokens = this.generateTokens(userRecord);
+
+      const user = userRecord.toObject();
+      Reflect.deleteProperty(user, 'password');
+      Reflect.deleteProperty(user, 'salt');
+      /**
+       * Easy as pie, you don't need passport.js anymore :)
+       */
+      return { user, tokens };
+    }
+    throw new Error('Invalid Password');
+  }
+
+  generateToken(user) {
+    const today = new Date();
+    const exp = new Date(today);
+    exp.setDate(today.getDate() + 60);
+
+    /**
+     * A JWT means JSON Web Token, so basically it's a json that is _hashed_ into
+     * The cool thing is that you can add custom properties a.k.a metadata
+     * Here we are adding the userId, role and name
+     * Beware that the metadata is and can be decoded without _the secret_
+     * but the client cannot craft a JWT to fake a userId
+     * because it doesn't have _the secret_ to sign it
+     * more information here: https://softwareontheroad.com/you-dont-need-passport
+     */
+    this.logger.silly(`Sign JWT for userId: ${user._id}`);
+    return jwt.sign(
+      {
+        _id: user._id, // We are gonna use this in the middleware 'isAuth'
+        role: user.role,
+        name: user.name,
+        exp: exp.getTime() / 1000,
+      },
+      config.jwtSecret
     );
-
-    return (data = {
-      uid: user._id,
-      email: user.email,
-      role: user.role,
-      verified: user.isVerified,
-      token: token,
-    });
   }
 
-  // Update user password
-  async updatePassword(userId, data) {
-    const user = await User.findOne({ _id: userId });
-    if (!user) throw new CustomError("User dose not exist");
+  generateTokens(user) {
+    try {
+      this.logger.silly(`Generate Access Token: ${user._id}`);
+      const accessToken = jwt.sign(
+        {
+          uid: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          verified: user.isVerified,
+        },
+        'JWT_SECRET',
+        {
+          expiresIn: '50m',
+        }
+      );
 
-    //Check if user password is correct
-    const isCorrect = await bcrypt.compare(data.password, user.password);
-    if (!isCorrect) throw new CustomError("Incorrect password");
-
-    const hash = await bcrypt.hash(password, BCRYPT_SALT);
-
-    await User.updateOne(
-      { _id: userId },
-      { $set: { password: hash } },
-      { new: true }
-    );
-
-    return;
-  }
-
-  // Sends a verification mail to user email
-  async RequestEmailVerification(email) {
-    const user = await User.findOne({ email });
-    if (!user) throw new CustomError("Email does not exist");
-    if (user.isVerified) throw new CustomError("Email is already verified");
-
-    let token = await Token.findOne({ userId: user._id });
-    if (token) await token.deleteOne();
-
-    let verifyToken = crypto.randomBytes(32).toString("hex");
-    const hash = await bcrypt.hash(verifyToken, BCRYPT_SALT);
-
-    await new Token({
-      userId: user._id,
-      token: hash,
-      createdAt: Date.now(),
-    }).save();
-
-    const link = `${url.CLIENT_URL}/email-verification?uid=${user._id}&verifyToken=${verifyToken}`;
-
-    // Send Mail
-    await new MailService(user).sendEmailVerificationMail(link);
-
-    return;
-  }
-
-  // Verify user
-  async VerifyEmail(data) {
-    const { userId, verifyToken } = data;
-
-    const user = await User.findOne({ _id: userId });
-    if (!user) throw new CustomError("User does not exist");
-    if (user.isVerified) throw new CustomError("Email is already verified");
-
-    let VToken = await Token.findOne({ userId });
-    if (!VToken)
-      throw new CustomError("Invalid or expired password reset token");
-
-    const isValid = await bcrypt.compare(verifyToken, VToken.token);
-    if (!isValid)
-      throw new CustomError("Invalid or expired password reset token");
-
-    await User.updateOne(
-      { _id: userId },
-      { $set: { isVerified: true } },
-      { new: true }
-    );
-
-    await VToken.deleteOne();
-
-    return;
-  }
-
-  // Sends a reset password mail to user email
-  async RequestPasswordReset(email) {
-    const user = await User.findOne({ email });
-    if (!user) throw new CustomError("Email does not exist");
-
-    let token = await Token.findOne({ userId: user._id });
-    if (token) await token.deleteOne();
-
-    let resetToken = crypto.randomBytes(32).toString("hex");
-    const hash = await bcrypt.hash(resetToken, BCRYPT_SALT);
-
-    await new Token({
-      userId: user._id,
-      token: hash,
-      createdAt: Date.now(),
-    }).save();
-
-    const link = `${url.CLIENT_URL}/reset-password?uid=${user._id}&resetToken=${resetToken}`;
-
-    // Send Mail
-    await new MailService(user).sendPasswordResetMail(link);
-
-    return;
-  }
-
-  // Resets user password
-  async resetPassword(data) {
-    const { userId, resetToken, password } = data;
-
-    let RToken = await Token.findOne({ userId });
-    if (!RToken)
-      throw new CustomError("Invalid or expired password reset token");
-
-    const isValid = await bcrypt.compare(resetToken, RToken.token);
-    if (!isValid)
-      throw new CustomError("Invalid or expired password reset token");
-
-    const hash = await bcrypt.hash(password, BCRYPT_SALT);
-
-    await User.updateOne(
-      { _id: userId },
-      { $set: { password: hash } },
-      { new: true }
-    );
-
-    await RToken.deleteOne();
-
-    return;
+      this.logger.silly(`Generate Refresh Token: ${user._id}`);
+      const refreshToken = jwt.sign({ id: user._id }, 'JWT_SECRET', {
+        expiresIn: '4w',
+      });
+      return { accessToken, refreshToken };
+    } catch ({ message }) {
+      throw new Error(`500---${message}`);
+    }
   }
 }
 
-module.exports = new AuthService();
+// Container.set('AuthService', new AuthService());

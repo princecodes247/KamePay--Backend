@@ -1,31 +1,17 @@
-const UserServ = require("./../services/user.service");
-const response = require("./../utils/response");
+import { Container } from 'typedi';
 
-class UserContoller {
-  async create(req, res) {
-    const result = await UserServ.create(req.body);
-    res.status(200).send(response("User created", result));
+class UserController {
+  async getAllUsers(req, res) {
+    const UserService = Container.get('user.service');
+    const users = await UserService.getAll();
+    return res.json({ users }).status(200);
   }
 
-  async getAll(req, res) {
-    const result = await UserServ.getAll();
-    res.status(200).send(response("All users", result));
-  }
-
-  async getOne(req, res) {
-    const result = await UserServ.getOne(req.params.userId);
-    res.status(200).send(response("User data", result));
-  }
-
-  async update(req, res) {
-    const result = await UserServ.update(req.params.userId, req.body);
-    res.status(200).send(response("User updated", result));
-  }
-
-  async delete(req, res) {
-    const result = await UserServ.delete(req.params.userId);
-    res.status(200).send(response("User deleted", result));
+  async test(req, res) {
+    const UserService = Container.get('user.service');
+    const test = await UserService.test();
+    return res.json({ test }).status(200);
   }
 }
 
-module.exports = new UserContoller();
+export default new UserController();

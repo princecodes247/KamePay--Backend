@@ -1,14 +1,17 @@
-const router = require("express").Router();
-const UserCtrl = require("./../controllers/user.controller");
-const auth = require('./../middlewares/auth.middleware');
-const upload = require("./../middlewares/multer.middleware")
-const { role } = require("./../config")
+import { Router } from 'express';
 
-router.post("/", auth(role.ADMIN), upload("image"), UserCtrl.create);
-router.get("/", auth(role.USER), UserCtrl.getAll);
-router.get("/:userId", auth(role.USER), UserCtrl.getOne);
-router.put("/:userId", auth(role.USER), upload("image"), UserCtrl.update);
-router.delete("/:userId", auth(role.USER), UserCtrl.delete);
+import UserController from '../controllers/user.controller';
+import middlewares from '../middlewares';
 
+const route = Router();
 
-module.exports = router
+export default app => {
+  app.use('/users', route);
+
+  route.get('/me', middlewares.isAuth, middlewares.attachCurrentUser, (req, res) =>
+    res.json({ user: req.currentUser }).status(200)
+  );
+
+  route.get('/', UserController.getAllUsers);
+  route.get('/test', UserController.test);
+};

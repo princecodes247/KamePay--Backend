@@ -1,40 +1,43 @@
-const AuthServ = require("../services/auth.service");
-const response = require("../utils/response");
+import { Container } from 'typedi';
 
-class AuthContoller {
-  async signup(req, res) {
-    const result = await AuthServ.signup(req.body);
-    res.status(201).send(response("User created", result));
+import { ACCESS_TOKEN, cookieOptions, refreshCookieOptions, REFRESH_TOKEN } from '../constants/auth.constants';
+
+class AuthController {
+  async signUp(req, res, next) {
+    const logger = Container.get('logger');
+
+    logger.debug('Calling Sign-Up endpoint with body: %o', req.body);
+    try {
+      const authServiceInstance = Container.get('auth.service');
+
+      const { user, token } = await authServiceInstance.signUp(req.body);
+      return res.status(201).json({ user, token });
+    } catch (e) {
+      logger.error('🔥 error: %o', e);
+      return next(e);
+    }
   }
 
-  async signin(req, res) {
-    const result = await AuthServ.signin(req.body);
-    res.status(200).send(response("User login successful", result));
-  }
+  async signIn(req, res, next) {
+    const logger = Container.get('logger');
 
-  async updatePassword(req, res) {
-    const result = await AuthServ.updatePassword(req.params.userId, req.body);
-    res.status(200).send(response("Password updated", result));
-  }
+    logger.debug('Calling Sign-In endpoint with body: %o', req.body);
+    try {
+      const authServiceInstance = Container.get('auth.service');
 
-  async RequestEmailVerification(req, res) {
-    const result = await AuthServ.RequestEmailVerification(req.query.email);
-    res.status(200).send(response("Email verfication link sent", result));
-  }
+      const { email, password } = req.body;
+      const { user, tokens } = await authServiceInstance.signIn(email, password);
 
-  async VerifyEmail(req, res) {
-    const result = await AuthServ.VerifyEmail(req.body);
-    res.status(200).send(response("Email verified successfully", result));
-  }
+      const { accessToken, refreshToken } = tokens;
 
-  async RequestPasswordReset(req, res) {
-    const result = await AuthServ.RequestPasswordReset(req.query.email);
-    res.status(200).send(response("Password reset link sent", result));
-  }
-  async resetPassword(req, res) {
-    const result = await AuthServ.resetPassword(req.body);
-    res.status(200).send(response("Password updated", result));
+      res.cookie(REFRESH_TOKEN, refreshToken, refreshCookieOptions);
+      res.cookie(ACCESS_TOKEN, accessToken, cookieOptions);
+      return res.json({ user, accessToken, refreshToken }).status(200);
+    } catch (e) {
+      logger.error('🔥 error: %o', e);
+      return next(e);
+    }
   }
 }
 
-module.exports = new AuthContoller();
+export default new AuthController();

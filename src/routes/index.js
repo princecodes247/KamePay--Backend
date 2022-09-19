@@ -1,7 +1,14 @@
-const router = require("express").Router();
+import { Router } from 'express';
+import auth from './auth.route';
+import user from './user.route';
+import agendash from './agendash.route';
 
-router.use("/auth", require("./auth.route"));
-router.use("/users", require("./user.route"));
-router.use("/transactions", require("./transaction.route"));
+// guaranteed to get dependencies
+export default () => {
+  const app = Router();
+  auth(app);
+  user(app);
+  agendash(app);
 
-module.exports = router;
+  return app;
+};
